@@ -146,4 +146,3 @@ torch
 ## 👨‍💻 Author
 
 **Yogeshwar Prasad Lohiya**
-[LinkedIn](#) | [GitHub](#)
