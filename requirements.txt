@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+langchain==0.3.27
+langchain-community==0.3.27
+langchain-ollama
+langchain-core==0.3.72
+langgraph
+chromadb
+sentence-transformers
+rank-bm25
+ddgs
+PyPDF2
+streamlit
+numpy
+pydantic
+sqlalchemy
+python-multipart

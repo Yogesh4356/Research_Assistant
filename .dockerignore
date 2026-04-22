@@ -1,0 +1,12 @@
+# .dockerignore
+
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+db/
+memory/chat_history.db
+.git/
+.gitignore
+*.md
