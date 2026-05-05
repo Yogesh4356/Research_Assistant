@@ -15,3 +15,5 @@ numpy
 pydantic
 sqlalchemy
 python-multipart
+langchain-groq
+python-dotenv

@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate  # ← change
 from langchain_core.output_parsers import StrOutputParser  # ← change
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -17,7 +16,8 @@ print(f"🚀 RAG Agent using device: {DEVICE}")
 
 
 # ---------------- LLM ----------------
-llm = OllamaLLM(model="llama3.2")
+from config import get_llm
+llm = get_llm()
 
 
 # ---------------- Cross Encoder ----------------
@@ -50,7 +50,7 @@ def multi_query_retrieve(query: str, retriever) -> tuple[list, list]:
     all_docs = []
 
     for q in queries:
-        docs = retriever.invoke(q)  # updated: get_relevant_documents deprecated
+        docs = retriever.invoke(q)  
         all_docs.extend(docs)
 
     # Deduplicate
@@ -141,10 +141,10 @@ def run_rag(
     candidates, expansions = multi_query_retrieve(query, retriever)
     top_docs = rrf_rerank(query, candidates, top_k=top_k)
 
-    # Context banana
+    # Context
     context = "\n\n".join(d.page_content for d in top_docs)
 
-    # Answer generate karo
+    # Answer generate 
     answer = qa_with_history.invoke(
         {"query": query, "context": context},
         config={"configurable": {"session_id": session_id}}

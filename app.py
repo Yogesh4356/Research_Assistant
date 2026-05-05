@@ -82,7 +82,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.metric("Document", "✅ Loaded" if st.session_state.has_document else "❌ None")
 with col2:
-    st.metric("LLM", "llama3.2 (local)")
+    st.metric("LLM", "llama3.3 (Groq)")
 
 st.divider()
 
@@ -142,10 +142,21 @@ if query:
         st.write(result["answer"])
 
         # Source badge
-        if result["source"] == "rag":
-            st.caption("📄 Source: Document (RAG)")
+        source = result.get("source", "")
+        if source == "askback":
+            st.caption("❓ Clarification needed")
         else:
-            st.caption("🔍 Source: Web Search")
+            # Results se actual sources nikalo
+            results = result.get("results") or []
+            agents_used = list(set([r.get("agent", "") for r in results]))
+            if "rag" in agents_used and "web_search" in agents_used:
+                st.caption("📄🔍 Source: Document + Web Search")
+            elif "rag" in agents_used:
+                st.caption("📄 Source: Document (RAG)")
+            elif "web_search" in agents_used:
+                st.caption("🔍 Source: Web Search")
+            elif "chitchat" in agents_used:
+                st.caption("💬 Source: Direct LLM")
 
         # Query expansions (RAG)
         if result.get("expansions"):

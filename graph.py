@@ -1,123 +1,224 @@
+import asyncio
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
 
-from agents.router import route_query
+from agents.planner import run_planner
 from agents.rag_agent import run_rag
 from agents.search_agent import run_web_search
-from memory.conversation import add_user_message, add_ai_message
+from agents.chitchat_agent import run_chitchat
+from agents.observer import run_observer
+from agents.synthesizer import run_synthesizer
 
 
-# ---------------- State Definition ----------------
+# ---------------- State ----------------
 class AgentState(TypedDict):
     query: str
     has_document: bool
     document_text: str
     collection_name: str
     session_id: str
-    route: Optional[str]
+    plan: Optional[dict]
+    results: Optional[list]
+    needs_clarification: bool
+    clarification_question: Optional[str]
+    is_sufficient: bool
     answer: Optional[str]
-    expansions: Optional[list]
-    top_docs: Optional[list]
-    raw_results: Optional[list]
     source: Optional[str]
+    iteration: int 
 
 
-# ---------------- Node 1: Router ----------------
-def router_node(state: AgentState) -> AgentState:
-    """Query ko route karo — rag ya web_search."""
-    print(f"🧭 Routing query: {state['query']}")
+# ---------------- Node 1: Planner ----------------
+def planner_node(state: AgentState) -> AgentState:
+    print(f"🧠 Planning query: {state['query']}")
 
-    route = route_query(
+    plan = run_planner(
         query=state["query"],
         has_document=state["has_document"]
     )
 
-    print(f"➡️ Route decided: {route}")
-    return {**state, "route": route}
+    print(f"📋 Plan: {plan}")
+
+    return {
+        **state,
+        "plan": plan,
+        "needs_clarification": plan.get("needs_clarification", False),
+        "clarification_question": plan.get("clarification_question", ""),
+        "results": []
+    }
 
 
-# ---------------- Node 2: RAG Node ----------------
-def rag_node(state: AgentState) -> AgentState:
-    """RAG agent se answer lo."""
-    print(f"📄 Running RAG agent...")
+# ---------------- Node 2: Executor ----------------
+def executor_node(state: AgentState) -> AgentState:
+    print(f"⚡ Executing sub-queries... (iteration {state['iteration']})")
 
-    result = run_rag(
-        query=state["query"],
-        text=state["document_text"],
-        collection_name=state["collection_name"],
+    plan = state["plan"]
+    sub_queries = plan.get("sub_queries", [])
+    existing_results = state.get("results") or []
+    new_results = []
+
+    results_by_id = {r["id"]: r for r in existing_results if "id" in r}
+
+    for sq in sub_queries:
+        sq_id = sq["id"]
+        sq_query = sq["query"]
+        sq_agent = sq["agent"]
+        depends_on = sq.get("depends_on", [])
+
+        if sq_id in results_by_id:
+            continue
+
+        if depends_on:
+            for dep_id in depends_on:
+                if dep_id in results_by_id:
+                    dep_answer = results_by_id[dep_id]["answer"]
+                    sq_query = f"{sq_query} (context: {dep_answer})"
+
+        print(f"  → Executing sub-query {sq_id} via {sq_agent}: {sq_query}")
+
+        if sq_agent == "rag":
+            result = run_rag(
+                query=sq_query,
+                text=state["document_text"],
+                collection_name=state["collection_name"],
+                session_id=state["session_id"]
+            )
+        elif sq_agent == "web_search":
+            result = run_web_search(query=sq_query)
+        elif sq_agent == "chitchat":
+            result = run_chitchat(
+                query=sq_query,
+                session_id=state["session_id"]
+            )
+        else:
+            result = run_web_search(query=sq_query)
+
+        new_results.append({
+            "id": sq_id,
+            "query": sq_query,
+            "agent": sq_agent,
+            "answer": result["answer"]
+        })
+        results_by_id[sq_id] = new_results[-1]
+
+    all_results = existing_results + new_results
+
+    return {
+        **state,
+        "results": all_results,
+        "iteration": state["iteration"] + 1 
+    }
+
+
+# ---------------- Node 3: Observer ----------------
+def observer_node(state: AgentState) -> AgentState:
+    print(f"👁️ Observing results...")
+
+    observation = run_observer(
+        original_query=state["query"],
+        results=state["results"]
+    )
+
+    print(f"📊 Observation: {observation}")
+
+    if not observation["is_sufficient"] and observation["additional_queries"]:
+        updated_plan = {
+            **state["plan"],
+            "sub_queries": observation["additional_queries"]
+        }
+        return {
+            **state,
+            "is_sufficient": False,
+            "plan": updated_plan
+        }
+
+    return {**state, "is_sufficient": True}
+
+
+# ---------------- Node 4: Synthesizer ----------------
+def synthesizer_node(state: AgentState) -> AgentState:
+    print(f"✍️ Synthesizing final answer...")
+
+    result = run_synthesizer(
+        original_query=state["query"],
+        results=state["results"],
         session_id=state["session_id"]
     )
 
-    # Memory mein save karo
-    add_user_message(state["session_id"], state["query"])
-    add_ai_message(state["session_id"], result["answer"])
-
     return {
         **state,
         "answer": result["answer"],
-        "expansions": result["expansions"],
-        "top_docs": result["top_docs"],
-        "source": "rag"
+        "source": "synthesizer"
     }
 
 
-# ---------------- Node 3: Web Search Node ----------------
-def web_search_node(state: AgentState) -> AgentState:
-    """Web search agent se answer lo."""
-    print(f"🔍 Running Web Search agent...")
-
-    result = run_web_search(query=state["query"])
-
-    # Memory mein save karo
-    add_user_message(state["session_id"], state["query"])
-    add_ai_message(state["session_id"], result["answer"])
-
+# ---------------- Node 5: Ask Back ----------------
+def askback_node(state: AgentState) -> AgentState:
+    print(f"❓ Asking clarification...")
     return {
         **state,
-        "answer": result["answer"],
-        "raw_results": result["raw_results"],
-        "source": "web_search"
+        "answer": state["clarification_question"],
+        "source": "askback"
     }
 
 
-# ---------------- Routing Logic ----------------
-def decide_route(state: AgentState) -> str:
-    """Router ka decision LangGraph ko batao."""
-    return state["route"]
+# ---------------- Routing Functions ----------------
+def after_planner(state: AgentState) -> str:
+    if state["needs_clarification"]:
+        return "askback"
+    return "executor"
+
+
+def after_observer(state: AgentState) -> str:
+    # Max 3 iterations — infinite loop prevent
+    if state["iteration"] >= 3:
+        return "synthesizer"
+    if state["is_sufficient"]:
+        return "synthesizer"
+    return "executor"
 
 
 # ---------------- Build Graph ----------------
-def build_graph() -> StateGraph:
-    """LangGraph workflow banao."""
-
+def build_graph():
     workflow = StateGraph(AgentState)
 
-    # Nodes add karo
-    workflow.add_node("router", router_node)
-    workflow.add_node("rag", rag_node)
-    workflow.add_node("web_search", web_search_node)
+    # Nodes
+    workflow.add_node("planner", planner_node)
+    workflow.add_node("executor", executor_node)
+    workflow.add_node("observer", observer_node)
+    workflow.add_node("synthesizer", synthesizer_node)
+    workflow.add_node("askback", askback_node)
 
-    # Entry point
-    workflow.set_entry_point("router")
+    # Entry
+    workflow.set_entry_point("planner")
 
-    # Conditional edges — router decide karega
+    # Edges
     workflow.add_conditional_edges(
-        "router",
-        decide_route,
+        "planner",
+        after_planner,
         {
-            "rag": "rag",
-            "web_search": "web_search"
+            "askback": "askback",
+            "executor": "executor"
         }
     )
 
-    # Dono nodes END pe jaate hain
-    workflow.add_edge("rag", END)
-    workflow.add_edge("web_search", END)
+    workflow.add_edge("executor", "observer")
+
+    workflow.add_conditional_edges(
+        "observer",
+        after_observer,
+        {
+            "executor": "executor", 
+            "synthesizer": "synthesizer"
+        }
+    )
+
+    workflow.add_edge("synthesizer", END)
+    workflow.add_edge("askback", END)
 
     return workflow.compile()
 
 
-# ---------------- Run Graph ----------------
+# ---------------- Run ----------------
 def run_graph(
     query: str,
     has_document: bool = False,
@@ -125,9 +226,7 @@ def run_graph(
     collection_name: str = "default",
     session_id: str = "default"
 ) -> dict:
-    """
-    Main function — Streamlit yahi call karega.
-    """
+
     graph = build_graph()
 
     initial_state = AgentState(
@@ -136,13 +235,17 @@ def run_graph(
         document_text=document_text,
         collection_name=collection_name,
         session_id=session_id,
-        route=None,
+        plan=None,
+        results=[],
+        needs_clarification=False,
+        clarification_question=None,
+        is_sufficient=False,
         answer=None,
-        expansions=None,
-        top_docs=None,
-        raw_results=None,
-        source=None
+        source=None,
+        iteration=0
     )
 
-    result = graph.invoke(initial_state)
-    return result
+    return graph.invoke(
+        initial_state,
+        config={"recursion_limit": 10}
+    )

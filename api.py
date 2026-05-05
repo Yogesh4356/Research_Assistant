@@ -44,7 +44,7 @@ def health():
 
 @app.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """PDF upload karo — text extract + store."""
+    """PDF upload — text extract + store."""
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files supported")
 
@@ -64,7 +64,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.post("/query")
 def query(request: QueryRequest):
-    """Query karo — agent automatically route karega."""
+    """Query — agent automatically routes."""
     has_document = request.collection_name in doc_store
     document_text = doc_store.get(request.collection_name, "")
 
@@ -88,7 +88,7 @@ def query(request: QueryRequest):
 
 @app.get("/history/{session_id}")
 def history(session_id: str):
-    """Session ki chat history fetch karo."""
+    """Session chat history fetch."""
     messages = get_chat_history(session_id)
     return {
         "session_id": session_id,
@@ -101,7 +101,7 @@ def history(session_id: str):
 
 @app.delete("/history")
 def delete_history(request: ClearRequest):
-    """Session history clear karo."""
+    """Session history clear."""
     clear_history(request.session_id)
     return {"message": f"History cleared for session: {request.session_id}"}
 

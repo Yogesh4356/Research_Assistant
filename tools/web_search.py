@@ -3,7 +3,7 @@ from ddgs import DDGS
 
 def web_search(query: str, max_results: int = 5) -> list[dict]:
     """
-    DuckDuckGo se web search karo.
+    DuckDuckGo web search.
     Returns list of dicts: title, url, snippet
     """
     results = []
@@ -21,8 +21,8 @@ def web_search(query: str, max_results: int = 5) -> list[dict]:
 
 def format_search_results(results: list[dict]) -> str:
     """
-    Search results ko readable string mein convert karo.
-    LLM ko context dene ke liye.
+    Convert search results into a readable string.
+    Provide context for the LLM.
     """
     if not results:
         return "No results found."
@@ -41,7 +41,7 @@ Summary: {r['snippet']}
 
 def search_and_format(query: str, max_results: int = 5) -> tuple[str, list[dict]]:
     """
-    Search karo + format karo — ek hi call mein.
+    Search and format in a single call.
     Returns: formatted string + raw results
     """
     results = web_search(query, max_results=max_results)

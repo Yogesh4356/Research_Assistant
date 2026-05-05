@@ -1,4 +1,3 @@
-from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate  # ← change
 from langchain_core.output_parsers import StrOutputParser  # ← change
 
@@ -6,7 +5,8 @@ from tools.web_search import search_and_format
 
 
 # ---------------- LLM ----------------
-llm = OllamaLLM(model="llama3.2")
+from config import get_llm
+llm = get_llm()
 
 
 # ---------------- Prompt ----------------
@@ -35,10 +35,10 @@ def run_web_search(query: str, max_results: int = 5) -> dict:
     Main function jo LangGraph node call karega.
     Returns: answer, raw results
     """
-    # Search karo
+    # Search 
     formatted_results, raw_results = search_and_format(query, max_results=max_results)
 
-    # LLM se answer banao
+    # LLM answer 
     answer = search_chain.invoke({
         "query": query,
         "search_results": formatted_results

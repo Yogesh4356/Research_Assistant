@@ -26,8 +26,8 @@ def build_or_load_vectorstore(
     persist_dir: str = "db"
 ) -> Chroma:
     """
-    Agar collection already exist karti hai toh load karo,
-    warna nayi banao.
+    If the collection already exists, load it,
+    otherwise create a new one.
     """
     embeddings = get_embeddings()
     collection_path = os.path.join(persist_dir, collection_name)
@@ -57,5 +57,5 @@ def build_or_load_vectorstore(
 
 # ---------------- Get Retriever ----------------
 def get_retriever(vectorstore: Chroma, k: int = 5):
-    """Vectorstore se retriever banao."""
+    """Create a retriever from the vectorstore."""
     return vectorstore.as_retriever(search_kwargs={"k": k})

@@ -1,5 +1,3 @@
-# k8s/deployment.yaml
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,11 +13,16 @@ spec:
         app: research-agent
     spec:
       containers:
-      - name: research-agent
-        image: research-agent:latest
-        imagePullPolicy: Never
-        ports:
-        - containerPort: 8000
-        env:
-        - name: OLLAMA_HOST
-          value: "http://host.docker.internal:11434"
+        - name: research-agent
+          image: research-agent:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: OLLAMA_HOST
+              value: "http://host.docker.internal:11434"
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-secret
+                  key: api-key
